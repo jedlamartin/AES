@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Add the floating-point operation event
-    retval = PAPI_add_event(event_set, PAPI_TOT_CYC);    // PAPI_FP_OPS);
+    retval = PAPI_add_event(event_set, PAPI_FP_OPS);    // PAPI_FP_OPS);
     if(retval != PAPI_OK) {
         fprintf(stderr, "PAPI Add Event error!\n");
         exit(1);
@@ -182,7 +182,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "PAPI Destroy error!\n");
     }
 
-    write_to_file(input, output);
+    // write_to_file(input, output);
 
     return 0;
 }

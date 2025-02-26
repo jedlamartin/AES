@@ -1,8 +1,6 @@
 #include "K.h"
 
-#include <iostream>
-
-#include "euler.h"
+// #include <iostream>
 
 const double Kmethod::Res = 5000.f;
 
@@ -44,12 +42,13 @@ Kmethod::Kmethod(int N, double fs, double eps) :
     this->G = (h * I - A).inverse() * C;
     this->J = (h * I - A).inverse() * B;
     this->K = D * this->G + F;
-    // std::cout<<H<<std::endl<<std::endl<<G<<std::endl<<std::endl<<J<<std::endl<<std::endl;
 
     // generate lookup tables
     std::pair<std::vector<double>, std::vector<double>> characteristic;
     for(double u = -5.f; u <= 5.f; u += eps) {
-        double i = Kmethod::IS0 * (std::exp(u / Kmethod::UT) - 1);
+        double i = Kmethod::IS0 * (std::exp(u / Kmethod::UT) -
+                                   1);    //< 10e5 ? Kmethod::IS0 (std::exp(u /
+                                          // Kmethod::UT) - 1) : 10e5;
         characteristic.second.push_back(i);
         characteristic.first.push_back(u);
     }
@@ -57,13 +56,13 @@ Kmethod::Kmethod(int N, double fs, double eps) :
         int size = characteristic.first.size();
         std::vector<double> p(size, 0.f);
         for(int j = 0; j < size; j++) {
-            p[j] = characteristic.first[j];
+            double tmp = 0;
             for(int k = 0; k < N; k++) {
-                p[j] -= K(i, k) * characteristic.second[j];
+                tmp += K(i, k) * characteristic.second[j];
             }
+            p[j] = characteristic.first[j] - tmp;
         }
-        this->table[i] = std::pair<std::vector<double>, std::vector<double>>(
-            p, characteristic.second);
+        this->table[i] = std::make_pair(p, characteristic.second);
     }
 }
 
@@ -82,9 +81,7 @@ void Kmethod::process(std::vector<double>& input, std::vector<double>& output) {
     for(int i = 0; i < input.size(); i++) {
         pk = H * w + J * (input[i] + uBuffer) + G * y;
         p = D * pk + E * input[i];
-        std::cout << p(0, 0) << std::endl;
         y = binarySearch(p);
-        std::cout << y(0, 0) << std::endl;
         w = G * y + pk;
         output[i] = w(0, 0);
         uBuffer = input[i];
@@ -98,6 +95,7 @@ Matrix<double, Dynamic, 1> Kmethod::binarySearch(
 
     for(int index = 0; index < p.rows(); index++) {
         int size = this->table[index].first.size();
+        // std::cout << p(index, 0) << std::endl;
         if(p(index, 0) <= this->table[index].first[0]) {
             y(index, 0) = this->table[index].second[0];
         } else if(p(index, 0) >= this->table[index].first[size - 1]) {
@@ -112,26 +110,23 @@ Matrix<double, Dynamic, 1> Kmethod::binarySearch(
                 }
 
                 if(p(index, 0) < this->table[index].first[mid]) {
-                    if(mid != 0 &&
+                    if(mid > 0 &&
                        p(index, 0) > this->table[index].first[mid - 1]) {
-                        mid = (std::abs(p(index, 0) -
-                                        this->table[index].first[mid - 1]) <
-                               std::abs(this->table[index].first[mid] -
-                                        p(index, 0))) ?
+                        mid = (p(index, 0) - this->table[index].first[mid - 1] <
+                               this->table[index].first[mid] - p(index, 0)) ?
                                   mid - 1 :
                                   mid;
                         break;
                     }
                     j = mid;
                 } else if(p(index, 0) > this->table[index].first[mid]) {
-                    if(mid != size &&
+                    if(mid < size - 1 &&
                        p(index, 0) < this->table[index].first[mid + 1]) {
-                        mid = (std::abs(p(index, 0) -
-                                        this->table[index].first[mid]) <
-                               std::abs(this->table[index].first[mid + 1] -
-                                        p(index, 0))) ?
-                                  mid :
-                                  mid + 1;
+                        mid =
+                            (p(index, 0) - this->table[index].first[mid] <
+                             this->table[index].first[mid + 1] - p(index, 0)) ?
+                                mid :
+                                mid + 1;
                         break;
                     }
                     i = mid + 1;
@@ -140,5 +135,6 @@ Matrix<double, Dynamic, 1> Kmethod::binarySearch(
             y(index, 0) = this->table[index].second[mid];
         }
     }
+    // std::cout << std::endl;
     return y;
 }
