@@ -20,24 +20,33 @@ void print_usage(const char* prog_name);
 
 void write_to_file(std::vector<double>& input, std::vector<double>& output);
 
+int PAPI_setup(int operation_type);
+
+long long int PAPI_close();
+
 int main(int argc, char* argv[]) {
-    const option longopts[] = {{"method", required_argument, 0, 'm'},
-                               {"N", required_argument, 0, 'n'},
-                               {"input-length", required_argument, 0, 't'},
-                               {"input-amplitude", required_argument, 0, 'a'},
-                               {"input-frequency", required_argument, 0, 'f'},
-                               {"samplerate", required_argument, 0, 's'},
-                               {"help", no_argument, 0, 'h'},
-                               {0, 0, 0, 0}};
+    const option longopts[] = {
+        {"method", required_argument, 0, 'm'},
+        {"N", required_argument, 0, 'n'},
+        {"input-length", required_argument, 0, 't'},
+        {"input-amplitude", required_argument, 0, 'a'},
+        {"input-frequency", required_argument, 0, 'f'},
+        {"samplerate", required_argument, 0, 's'},
+        {"help", no_argument, 0, 'h'},
+        {"increase", no_argument, 0, 'i'},    // New --increase option
+        {"constant", no_argument, 0, 'c'},    // New --constant option
+        {0, 0, 0, 0}};
+
     int opt;
     int N;
     std::string method;
     bool hasN = false, hasMethod = false;
+    bool increase = true;
 
-    double t = 1.f;
-    double f = 440.f;
+    double t = 0.01f;
+    double f = 2000.f;
     double fs = 48000.f;
-    double ampl = 5;
+    double ampl = 0.5;
 
     while((opt = getopt_long(argc, argv, "", longopts, NULL)) != -1) {
         switch(opt) {
@@ -77,7 +86,7 @@ int main(int argc, char* argv[]) {
             case 'f':
                 f = std::stod(optarg);
                 if(f <= 0) {
-                    std::cerr << "Error: The frequency if the input signal "
+                    std::cerr << "Error: The frequency of the input signal "
                                  "must be greater than 0!\n";
                     exit(1);
                 }
@@ -93,6 +102,12 @@ int main(int argc, char* argv[]) {
             case 'h':
                 print_usage(argv[0]);
                 break;
+            case 'i':    // Handle --increase option
+                increase = true;
+                break;
+            case 'c':    // Handle --constant option
+                increase = false;
+                break;
             default:
                 std::cerr << "Error: Invalid argument." << std::endl;
                 print_usage(argv[0]);
@@ -106,6 +121,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "N=" << N << "\n";
+    std::cout << "increase=" << increase << "\n";
     std::cout << "Method=" << method << "\n";
     std::cout << "t=" << t << "\n";
     std::cout << "Amplitude=" << ampl << "\n";
@@ -115,33 +131,13 @@ int main(int argc, char* argv[]) {
     std::vector<double> input(generateInput(t, f, ampl, fs));
     std::vector<double> output(input.size(), 0.f);
 
-    // Initialize PAPI
-    int retval = PAPI_library_init(PAPI_VER_CURRENT);
-    if(retval != PAPI_VER_CURRENT) {
-        fprintf(stderr, "PAPI Library initialization error!\n");
-        exit(1);
-    }
-
-    // Create an event set
-    int event_set = PAPI_NULL;
-    retval = PAPI_create_eventset(&event_set);
-    if(retval != PAPI_OK) {
-        fprintf(stderr, "PAPI EventSet creation error!\n");
-        exit(1);
-    }
-
-    // Add the floating-point operation event
-    retval = PAPI_add_event(event_set, PAPI_FP_OPS);    // PAPI_FP_OPS);
-    if(retval != PAPI_OK) {
-        fprintf(stderr, "PAPI Add Event error!\n");
-        exit(1);
-    }
+    int event_set = PAPI_setup(PAPI_FP_OPS);
 
     if(method == "Kmethod") {
         Kmethod kmethod(N, fs, 10e-6);
 
         // Start counting the events
-        retval = PAPI_start(event_set);
+        int retval = PAPI_start(event_set);
         if(retval != PAPI_OK) {
             fprintf(stderr, "PAPI Start error!\n");
             exit(1);
@@ -152,7 +148,7 @@ int main(int argc, char* argv[]) {
         Euler euler(N, fs);
 
         // Start counting the events
-        retval = PAPI_start(event_set);
+        int retval = PAPI_start(event_set);
         if(retval != PAPI_OK) {
             fprintf(stderr, "PAPI Start error!\n");
             exit(1);
@@ -161,26 +157,8 @@ int main(int argc, char* argv[]) {
         euler.process(input, output);
     }
 
-    // Stop counting and get the result
-    long long int fp_ops;
-    retval = PAPI_stop(event_set, &fp_ops);
-    if(retval != PAPI_OK) {
-        fprintf(stderr, "PAPI Stop error!\n");
-        exit(1);
-    }
-
     // Output the number of floating-point operations
-    printf("Floating-point operations: %lld\n", fp_ops);
-
-    // Cleanup PAPI resources
-    retval = PAPI_cleanup_eventset(event_set);
-    if(retval != PAPI_OK) {
-        fprintf(stderr, "PAPI Cleanup error!\n");
-    }
-    retval = PAPI_destroy_eventset(&event_set);
-    if(retval != PAPI_OK) {
-        fprintf(stderr, "PAPI Destroy error!\n");
-    }
+    printf("Floating-point operations: %lld\n", PAPI_close(event_set));
 
     // write_to_file(input, output);
 
@@ -203,14 +181,17 @@ std::vector<double> generateInput(const double t,
 }
 
 void print_usage(const char* prog_name) {
-    std::cerr << "Usage: " << prog_name
-              << " --N <value> --method <Kmethod|Euler> [options]\n";
     std::cerr
+        << "Usage: " << prog_name
+        << " --N <value> --method <Kmethod|Euler> [options]\n"
         << "Options:\n"
         << "  --input-length <value>   Length of input signal (default: 1 s)\n"
         << "  --amplitude <value>      Amplitude (default: 5)\n"
         << "  --frequency <value>      Frequency (default: 440 Hz)\n"
         << "  --fs <value>             Sampling rate (default: 48000 Hz)\n"
+        << "  --increase               Simultaneously increase nonlinear "
+           "elements with N (default)\n"
+        << "  --constant               Use a single nonlinear element\n"
         << "  --help                   Show this message and exit\n";
     exit(1);
 }
@@ -226,4 +207,35 @@ void write_to_file(std::vector<double>& input, std::vector<double>& output) {
 
     iFile.close();
     oFile.close();
+}
+
+int PAPI_setup(int operation_type) {
+    if(PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
+        fprintf(stderr, "PAPI Library initialization error!\n");
+        exit(1);
+    }
+
+    int event_set = PAPI_NULL;
+    if(PAPI_create_eventset(&event_set) != PAPI_OK ||
+       PAPI_add_event(event_set, operation_type) != PAPI_OK) {
+        fprintf(stderr, "PAPI EventSet creation error!\n");
+        exit(1);
+    }
+
+    return event_set;
+}
+
+long long int PAPI_close(int event_set) {
+    long long int fp_ops;
+    if(PAPI_stop(event_set, &fp_ops) != PAPI_OK) {
+        fprintf(stderr, "PAPI Stop error!\n");
+        exit(1);
+    }
+
+    if(PAPI_cleanup_eventset(event_set) != PAPI_OK ||
+       PAPI_destroy_eventset(&event_set) != PAPI_OK) {
+        fprintf(stderr, "PAPI Cleanup/Destroy error!\n");
+    }
+
+    return fp_ops;
 }

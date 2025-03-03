@@ -45,7 +45,7 @@ Kmethod::Kmethod(int N, double fs, double eps) :
 
     // generate lookup tables
     std::pair<std::vector<double>, std::vector<double>> characteristic;
-    for(double u = -5.f; u <= 5.f; u += eps) {
+    for(double u = -1.f; u <= 1.f; u += eps) {
         double i = Kmethod::IS0 * (std::exp(u / Kmethod::UT) -
                                    1);    //< 10e5 ? Kmethod::IS0 (std::exp(u /
                                           // Kmethod::UT) - 1) : 10e5;
