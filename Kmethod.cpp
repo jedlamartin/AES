@@ -1,4 +1,4 @@
-#include "K.h"
+#include "Kmethod.h"
 
 const double Kmethod::Res = 5000.f;
 

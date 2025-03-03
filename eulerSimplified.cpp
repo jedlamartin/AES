@@ -1,16 +1,16 @@
-#include "euler.h"
+#include "eulerSimplified.h"
 
-const double Euler::Res = 5000.f;
+const double EulerSimplified::Res = 5000.f;
 
-const double Euler::Cap = 10e-6;
+const double EulerSimplified::Cap = 10e-6;
 
-const double Euler::eps = 10e-6;
+const double EulerSimplified::eps = 10e-6;
 
-const double Euler::IS0 = 10e-9;
+const double EulerSimplified::IS0 = 10e-9;
 
-const double Euler::UT = 26e-3;
+const double EulerSimplified::UT = 26e-3;
 
-Euler::Euler(int N, double fs, bool increase) : N(N) {
+EulerSimplified::EulerSimplified(int N, double fs, bool increase) : N(N) {
     Matrix<double, Dynamic, Dynamic> A;
     Matrix<double, Dynamic, 1> B;
     Matrix<double, Dynamic, Dynamic> C;
@@ -22,12 +22,12 @@ Euler::Euler(int N, double fs, bool increase) : N(N) {
         this->D.setZero(N, N);
         this->E.setZero(N, 1);
         F.setZero(N, N);
-        C(N - 1, N - 1) = 1 / Euler::Cap;
+        C(N - 1, N - 1) = 1 / EulerSimplified::Cap;
         this->D(0, 0) = -1;
         this->E(0, 0) = 1;
         for(int i = 0; i < N - 1; i++) {
-            C(i, i) = 1 / Euler::Cap;
-            C(i, i + 1) = -1 / Euler::Cap;
+            C(i, i) = 1 / EulerSimplified::Cap;
+            C(i, i + 1) = -1 / EulerSimplified::Cap;
             this->D(i + 1, i) = 1;
             this->D(i + 1, i + 1) = -1;
         }
@@ -42,21 +42,26 @@ Euler::Euler(int N, double fs, bool increase) : N(N) {
         for(int i = 0; i < N; i++) {
             if(i == 0) {
                 // First row
-                A(i, 0) = -1.0 / (Euler::Cap * Euler::Res);
-                A(i, 1) = 1.0 / (Euler::Cap * Euler::Res);
+                A(i, 0) = -1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
+                A(i, 1) = 1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
             } else if(i == N - 1) {
                 // Last row
-                A(i, N - 2) = 1.0 / (Euler::Cap * Euler::Res);
-                A(i, N - 1) = -1.0 / (Euler::Cap * Euler::Res);
+                A(i, N - 2) =
+                    1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
+                A(i, N - 1) =
+                    -1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
             } else {
                 // Intermediate rows
-                A(i, i - 1) = 1.0 / (Euler::Cap * Euler::Res);
-                A(i, i) = -(1.0 / (Euler::Cap * Euler::Res) +
-                            1.0 / (Euler::Cap * Euler::Res));
-                A(i, i + 1) = 1.0 / (Euler::Cap * Euler::Res);
+                A(i, i - 1) =
+                    1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
+                A(i, i) =
+                    -(1.0 / (EulerSimplified::Cap * EulerSimplified::Res) +
+                      1.0 / (EulerSimplified::Cap * EulerSimplified::Res));
+                A(i, i + 1) =
+                    1.0 / (EulerSimplified::Cap * EulerSimplified::Res);
             }
 
-            C(0, 0) = 1 / Euler::Cap;
+            C(0, 0) = 1 / EulerSimplified::Cap;
             this->D(0, 0) = -1;
             this->E(0, 0) = 1;
         }
@@ -69,7 +74,8 @@ Euler::Euler(int N, double fs, bool increase) : N(N) {
     this->J = (fs * I - A).inverse() * B;
 }
 
-void Euler::process(std::vector<double>& input, std::vector<double>& output) {
+void EulerSimplified::process(std::vector<double>& input,
+                              std::vector<double>& output) {
     Matrix<double, Dynamic, 1> w;
     wBuffer.setZero(N, 1);
     Matrix<double, Dynamic, Dynamic> f;
@@ -83,14 +89,14 @@ void Euler::process(std::vector<double>& input, std::vector<double>& output) {
         while(true) {
             f = -w + H * wBuffer +
                 G * IS0 *
-                    (((this->D * w + E * input[i]) / Euler::UT)
+                    (((this->D * w + E * input[i]) / EulerSimplified::UT)
                          .unaryExpr([](double x) { return std::exp(x); }) -
                      ones);
-            if((f.array().abs() < Euler::eps).all()) {
+            if((f.array().abs() < EulerSimplified::eps).all()) {
                 break;
             }
-            J = -I + G * Euler::IS0 / Euler::UT *
-                         ((((D * w + E * input[i]) / Euler::UT)
+            J = -I + G * EulerSimplified::IS0 / EulerSimplified::UT *
+                         ((((D * w + E * input[i]) / EulerSimplified::UT)
                                .unaryExpr([](double x) { return std::exp(x); }))
                               .asDiagonal()) *
                          D;

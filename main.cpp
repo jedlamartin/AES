@@ -6,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-#include "K.h"
+#include "Kmethod.h"
 #include "euler.h"
 
 #define _USE_MATH_DEFINES

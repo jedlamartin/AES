@@ -1,22 +1,22 @@
-#ifndef K_H
-#define K_H
+#ifndef KMETHOD_H
+#define KMETHOD_H
 
 #include <eigen3/Eigen/Dense>
 #include <vector>
 
 using namespace Eigen;
 
-class Kmethod {
-    public:
-    Kmethod(int, double, double, bool);
+class EulerSimplified {
+public:
+    EulerSimplified(int, double, bool);
     void process(std::vector<double>& input, std::vector<double>& output);
 
-    private:
+private:
     int N;
 
     static const double Res;
     static const double Cap;
-
+    static const double eps;
     static const double IS0;
     static const double UT;
 
@@ -27,11 +27,5 @@ class Kmethod {
     Matrix<double, Dynamic, Dynamic> H;
     Matrix<double, Dynamic, Dynamic> G;
     Matrix<double, Dynamic, 1> J;
-    Matrix<double, Dynamic, Dynamic> K;
-
-    std::vector<std::pair<std::vector<double>, std::vector<double>>> table;
-
-    Matrix<double, Dynamic, 1> binarySearch(Matrix<double, Dynamic, 1>&) const;
 };
-
 #endif
