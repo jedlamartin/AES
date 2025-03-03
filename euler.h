@@ -8,7 +8,7 @@ using namespace Eigen;
 
 class Euler {
     public:
-    Euler(int, double);
+    Euler(int, double, bool);
     void process(std::vector<double>& input, std::vector<double>& output);
 
     private:

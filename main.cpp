@@ -22,20 +22,19 @@ void write_to_file(std::vector<double>& input, std::vector<double>& output);
 
 int PAPI_setup(int operation_type);
 
-long long int PAPI_close();
+long long int PAPI_close(int event_set);
 
 int main(int argc, char* argv[]) {
-    const option longopts[] = {
-        {"method", required_argument, 0, 'm'},
-        {"N", required_argument, 0, 'n'},
-        {"input-length", required_argument, 0, 't'},
-        {"input-amplitude", required_argument, 0, 'a'},
-        {"input-frequency", required_argument, 0, 'f'},
-        {"samplerate", required_argument, 0, 's'},
-        {"help", no_argument, 0, 'h'},
-        {"increase", no_argument, 0, 'i'},    // New --increase option
-        {"constant", no_argument, 0, 'c'},    // New --constant option
-        {0, 0, 0, 0}};
+    const option longopts[] = {{"method", required_argument, 0, 'm'},
+                               {"N", required_argument, 0, 'n'},
+                               {"input-length", required_argument, 0, 't'},
+                               {"input-amplitude", required_argument, 0, 'a'},
+                               {"input-frequency", required_argument, 0, 'f'},
+                               {"samplerate", required_argument, 0, 's'},
+                               {"help", no_argument, 0, 'h'},
+                               {"increase", no_argument, 0, 'i'},
+                               {"constant", no_argument, 0, 'c'},
+                               {0, 0, 0, 0}};
 
     int opt;
     int N;
@@ -131,10 +130,10 @@ int main(int argc, char* argv[]) {
     std::vector<double> input(generateInput(t, f, ampl, fs));
     std::vector<double> output(input.size(), 0.f);
 
-    int event_set = PAPI_setup(PAPI_FP_OPS);
+    int event_set = PAPI_setup(PAPI_TOT_CYC);
 
     if(method == "Kmethod") {
-        Kmethod kmethod(N, fs, 10e-6);
+        Kmethod kmethod(N, fs, 0.5f, increase);
 
         // Start counting the events
         int retval = PAPI_start(event_set);
@@ -145,7 +144,7 @@ int main(int argc, char* argv[]) {
 
         kmethod.process(input, output);
     } else if(method == "Euler") {
-        Euler euler(N, fs);
+        Euler euler(N, fs, increase);
 
         // Start counting the events
         int retval = PAPI_start(event_set);

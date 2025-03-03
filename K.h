@@ -8,8 +8,8 @@ using namespace Eigen;
 
 class Kmethod {
     public:
-    Kmethod(int, double, double);
-    void process(std::vector<double> &input, std::vector<double> &output);
+    Kmethod(int, double, double, bool);
+    void process(std::vector<double>& input, std::vector<double>& output);
 
     private:
     int N;
@@ -31,7 +31,7 @@ class Kmethod {
 
     std::vector<std::pair<std::vector<double>, std::vector<double>>> table;
 
-    Matrix<double, Dynamic, 1> binarySearch(Matrix<double, Dynamic, 1> &) const;
+    Matrix<double, Dynamic, 1> binarySearch(Matrix<double, Dynamic, 1>&) const;
 };
 
 #endif

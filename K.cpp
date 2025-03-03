@@ -1,7 +1,5 @@
 #include "K.h"
 
-// #include <iostream>
-
 const double Kmethod::Res = 5000.f;
 
 const double Kmethod::Cap = 10e-6;
@@ -10,31 +8,62 @@ const double Kmethod::IS0 = 10e-9;
 
 const double Kmethod::UT = 26e-3;
 
-Kmethod::Kmethod(int N, double fs, double eps) :
-    N(N),
-    table(std::vector<std::pair<std::vector<double>, std::vector<double>>>(
-        N,
-        std::pair<std::vector<double>, std::vector<double>>())) {
+Kmethod::Kmethod(int N, double fs, double eps, bool increase) : N(N) {
+    int numOfTables = increase ? N : 1;
+    this->table.resize(
+        numOfTables,
+        std::make_pair(std::vector<double>(), std::vector<double>()));
+
     Matrix<double, Dynamic, Dynamic> A;
     Matrix<double, Dynamic, 1> B;
     Matrix<double, Dynamic, Dynamic> C;
     Matrix<double, Dynamic, Dynamic> F;
-    A.setZero(N, N);
-    B.setZero(N, 1);
-    C.setZero(N, N);
-    this->D.setZero(N, N);
-    this->E.setZero(N, 1);
-    F.setZero(N, N);
-    C(N - 1, N - 1) = 1 / Kmethod::Cap;
-    this->D(0, 0) = -1;
-    this->E(0, 0) = 1;
-    for(int i = 0; i < N - 1; i++) {
-        C(i, i) = 1 / Kmethod::Cap;
-        C(i, i + 1) = -1 / Kmethod::Cap;
-        this->D(i + 1, i) = 1;
-        this->D(i + 1, i + 1) = -1;
+    if(increase) {
+        A.setZero(N, N);
+        B.setZero(N, 1);
+        C.setZero(N, N);
+        this->D.setZero(N, N);
+        this->E.setZero(N, 1);
+        F.setZero(N, N);
+        C(N - 1, N - 1) = 1 / Kmethod::Cap;
+        this->D(0, 0) = -1;
+        this->E(0, 0) = 1;
+        for(int i = 0; i < N - 1; i++) {
+            C(i, i) = 1 / Kmethod::Cap;
+            C(i, i + 1) = -1 / Kmethod::Cap;
+            this->D(i + 1, i) = 1;
+            this->D(i + 1, i + 1) = -1;
+        }
+    } else {
+        A.setZero(N, N);
+        B.setZero(N, 1);
+        C.setZero(N, 1);
+        this->D.setZero(1, N);
+        this->E.setZero(1, 1);
+        F.setZero(1, 1);
+
+        for(int i = 0; i < N; i++) {
+            if(i == 0) {
+                // First row
+                A(i, 0) = -1.0 / (Kmethod::Cap * Kmethod::Res);
+                A(i, 1) = 1.0 / (Kmethod::Cap * Kmethod::Res);
+            } else if(i == N - 1) {
+                // Last row
+                A(i, N - 2) = 1.0 / (Kmethod::Cap * Kmethod::Res);
+                A(i, N - 1) = -1.0 / (Kmethod::Cap * Kmethod::Res);
+            } else {
+                // Intermediate rows
+                A(i, i - 1) = 1.0 / (Kmethod::Cap * Kmethod::Res);
+                A(i, i) = -(1.0 / (Kmethod::Cap * Kmethod::Res) +
+                            1.0 / (Kmethod::Cap * Kmethod::Res));
+                A(i, i + 1) = 1.0 / (Kmethod::Cap * Kmethod::Res);
+            }
+
+            C(0, 0) = 1 / Kmethod::Cap;
+            this->D(0, 0) = -1;
+            this->E(0, 0) = 1;
+        }
     }
-    // std::cout<<C<<std::endl<<std::endl<<D<<std::endl<<std::endl<<E<<std::endl<<std::endl;
     double h = 2 * fs;
     Matrix<double, Dynamic, Dynamic> I;
     I.setIdentity(N, N);
@@ -46,18 +75,16 @@ Kmethod::Kmethod(int N, double fs, double eps) :
     // generate lookup tables
     std::pair<std::vector<double>, std::vector<double>> characteristic;
     for(double u = -1.f; u <= 1.f; u += eps) {
-        double i = Kmethod::IS0 * (std::exp(u / Kmethod::UT) -
-                                   1);    //< 10e5 ? Kmethod::IS0 (std::exp(u /
-                                          // Kmethod::UT) - 1) : 10e5;
+        double i = Kmethod::IS0 * (std::exp(u / Kmethod::UT) - 1);
         characteristic.second.push_back(i);
         characteristic.first.push_back(u);
     }
-    for(int i = 0; i < N; i++) {
+    for(int i = 0; i < numOfTables; i++) {
         int size = characteristic.first.size();
         std::vector<double> p(size, 0.f);
         for(int j = 0; j < size; j++) {
             double tmp = 0;
-            for(int k = 0; k < N; k++) {
+            for(int k = 0; k < numOfTables; k++) {
                 tmp += K(i, k) * characteristic.second[j];
             }
             p[j] = characteristic.first[j] - tmp;
@@ -71,7 +98,7 @@ void Kmethod::process(std::vector<double>& input, std::vector<double>& output) {
     w.setZero(N, 1);
 
     Matrix<double, Dynamic, Dynamic> y;
-    y.setZero(N, 1);
+    y.setZero(this->E.rows(), 1);
 
     Matrix<double, Dynamic, Dynamic> pk;
     Matrix<double, Dynamic, 1> p;
