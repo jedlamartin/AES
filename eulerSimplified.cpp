@@ -76,31 +76,46 @@ EulerSimplified::EulerSimplified(int N, double fs, bool increase) : N(N) {
 
 void EulerSimplified::process(std::vector<double>& input,
                               std::vector<double>& output) {
-    Matrix<double, Dynamic, 1> w;
-    wBuffer.setZero(N, 1);
+                                  Matrix<double, Dynamic, 1> w;
+                                  wBuffer.setZero(N, 1);
+                                  int maxSize=N>1?1:0;
     Matrix<double, Dynamic, Dynamic> f;
     Matrix<double, Dynamic, Dynamic> J;
     Matrix<double, Dynamic, Dynamic> I;
     Matrix<double, Dynamic, 1> ones;
-    I.setIdentity(N, N);
-    ones.setOnes(this->E.rows(), 1);
+    I.setIdentity(maxSize+1, maxSize+1);
+    ones.setOnes(maxSize+1, 1);
+
+    
+    const Matrix<double, Dynamic, Dynamic> Dtmp(this->D.block(0,0,maxSize,0));
+    const Matrix<double, Dynamic, Dynamic> Gtmp(G.block(0,0,maxSize,G.cols()-1));
+    const Matrix<double, Dynamic, Dynamic> Htmp(H.block(0,0,maxSize,H.cols()-1));
+    Matrix<double, Dynamic, 1> wTmp;
+    Matrix<double, Dynamic, 1> wMul;
+    
+
     for(int i = 0; i < input.size(); i++) {
         w = wBuffer;
+        w.block(maxSize+1,0,w.rows()-1,0)=this->H.block(maxSize+1,0,this->H.rows()-1,this->H.cols()-1)*wBuffer;
         while(true) {
-            f = -w + H * wBuffer +
-                G * IS0 *
-                    (((this->D * w + E * input[i]) / EulerSimplified::UT)
+            wTmp=w.block(0,0,maxSize,0);
+            wMul.block(0,0,maxSize,0)=wBuffer.block(0,0,maxSize,0);
+            wMul.block(maxSize+1,0,w.rows()-1,0)=w.block(maxSize+1,0,w.rows()-1,0)
+            f = -wTmp + Htmp * wMul +
+                Gtmp * IS0 *
+                    (((Dtmp * wTmp + E * input[i]) / EulerSimplified::UT)
                          .unaryExpr([](double x) { return std::exp(x); }) -
                      ones);
             if((f.array().abs() < EulerSimplified::eps).all()) {
                 break;
             }
-            J = -I + G * EulerSimplified::IS0 / EulerSimplified::UT *
-                         ((((D * w + E * input[i]) / EulerSimplified::UT)
+            J = -I + Gtmp * EulerSimplified::IS0 / EulerSimplified::UT *
+                         ((((Dtmp * wTmp + E * input[i]) / EulerSimplified::UT)
                                .unaryExpr([](double x) { return std::exp(x); }))
                               .asDiagonal()) *
-                         D;
-            w = w - J.inverse() * f;
+                         Dtmp;
+            
+            w.block(0,0,maxSize,0) = w.block(0,0,maxSize,0) - J.inverse() * f;
         }
         output[i] = w(0, 0);
         wBuffer = w;
