@@ -1,5 +1,5 @@
-#ifndef KMETHOD_H
-#define KMETHOD_H
+#ifndef EULERSIMPLIFIED_H
+#define EULERSIMPLIFIED_H
 
 #include <eigen3/Eigen/Dense>
 #include <vector>

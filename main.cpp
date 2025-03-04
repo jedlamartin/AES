@@ -1,13 +1,14 @@
 #include <getopt.h>
 #include <math.h>
-#include <papi.h>
 
 #include <fstream>
 #include <iostream>
 #include <vector>
 
 #include "Kmethod.h"
+#include "PAPI.h"
 #include "euler.h"
+#include "eulerSimplified.h"
 
 #define _USE_MATH_DEFINES
 
@@ -19,10 +20,6 @@ std::vector<double> generateInput(const double t,
 void print_usage(const char* prog_name);
 
 void write_to_file(std::vector<double>& input, std::vector<double>& output);
-
-int PAPI_setup(int operation_type);
-
-long long int PAPI_close(int event_set);
 
 int main(int argc, char* argv[]) {
     const option longopts[] = {{"method", required_argument, 0, 'm'},
@@ -59,9 +56,10 @@ int main(int argc, char* argv[]) {
                 break;
             case 'm':
                 method = std::string(optarg);
-                if(method != "Kmethod" && method != "Euler") {
-                    std::cerr
-                        << "Error: Invalid method. Use 'Kmethod' or 'Euler'.\n";
+                if(method != "Kmethod" && method != "Euler" &&
+                   method != "EulerSimplified") {
+                    std::cerr << "Error: Invalid method. Use 'Kmethod', "
+                                 "'Euler' or 'EulerSimplified'.\n";
                     exit(1);
                 }
                 hasMethod = true;
@@ -101,10 +99,10 @@ int main(int argc, char* argv[]) {
             case 'h':
                 print_usage(argv[0]);
                 break;
-            case 'i':    // Handle --increase option
+            case 'i':
                 increase = true;
                 break;
-            case 'c':    // Handle --constant option
+            case 'c':
                 increase = false;
                 break;
             default:
@@ -116,6 +114,11 @@ int main(int argc, char* argv[]) {
 
     if(!hasN || !hasMethod) {
         std::cerr << "Error: Missing mandatory parameters." << std::endl;
+        print_usage(argv[0]);
+    } else if(method == "EulerSimplified" && increase) {
+        std::cerr << "Error: The simplified Euler method can only be used with "
+                     "a single nonlinear component."
+                  << std::endl;
         print_usage(argv[0]);
     }
 
@@ -130,36 +133,34 @@ int main(int argc, char* argv[]) {
     std::vector<double> input(generateInput(t, f, ampl, fs));
     std::vector<double> output(input.size(), 0.f);
 
-    int event_set = PAPI_setup(PAPI_TOT_CYC);
+    int event_set = PAPI::setup(PAPI_TOT_CYC);
 
     if(method == "Kmethod") {
         Kmethod kmethod(N, fs, 0.5f, increase);
 
         // Start counting the events
-        int retval = PAPI_start(event_set);
-        if(retval != PAPI_OK) {
-            fprintf(stderr, "PAPI Start error!\n");
-            exit(1);
-        }
+        PAPI::start(event_set);
 
         kmethod.process(input, output);
     } else if(method == "Euler") {
         Euler euler(N, fs, increase);
 
         // Start counting the events
-        int retval = PAPI_start(event_set);
-        if(retval != PAPI_OK) {
-            fprintf(stderr, "PAPI Start error!\n");
-            exit(1);
-        }
+        PAPI::start(event_set);
 
         euler.process(input, output);
+    } else if(method == "EulerSimplified") {
+        EulerSimplified eulerSimplified(N, fs, increase);
+
+        // Start counting the events
+        PAPI::start(event_set);
+        eulerSimplified.process(input, output);
     }
 
     // Output the number of floating-point operations
-    printf("Floating-point operations: %lld\n", PAPI_close(event_set));
+    printf("Floating-point operations: %lld\n", PAPI::close(event_set));
 
-    // write_to_file(input, output);
+    write_to_file(input, output);
 
     return 0;
 }
@@ -182,7 +183,7 @@ std::vector<double> generateInput(const double t,
 void print_usage(const char* prog_name) {
     std::cerr
         << "Usage: " << prog_name
-        << " --N <value> --method <Kmethod|Euler> [options]\n"
+        << " --N <value> --method <Kmethod|Euler|EulerSimplified> [options]\n"
         << "Options:\n"
         << "  --input-length <value>   Length of input signal (default: 1 s)\n"
         << "  --amplitude <value>      Amplitude (default: 5)\n"
@@ -206,35 +207,4 @@ void write_to_file(std::vector<double>& input, std::vector<double>& output) {
 
     iFile.close();
     oFile.close();
-}
-
-int PAPI_setup(int operation_type) {
-    if(PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
-        fprintf(stderr, "PAPI Library initialization error!\n");
-        exit(1);
-    }
-
-    int event_set = PAPI_NULL;
-    if(PAPI_create_eventset(&event_set) != PAPI_OK ||
-       PAPI_add_event(event_set, operation_type) != PAPI_OK) {
-        fprintf(stderr, "PAPI EventSet creation error!\n");
-        exit(1);
-    }
-
-    return event_set;
-}
-
-long long int PAPI_close(int event_set) {
-    long long int fp_ops;
-    if(PAPI_stop(event_set, &fp_ops) != PAPI_OK) {
-        fprintf(stderr, "PAPI Stop error!\n");
-        exit(1);
-    }
-
-    if(PAPI_cleanup_eventset(event_set) != PAPI_OK ||
-       PAPI_destroy_eventset(&event_set) != PAPI_OK) {
-        fprintf(stderr, "PAPI Cleanup/Destroy error!\n");
-    }
-
-    return fp_ops;
 }
